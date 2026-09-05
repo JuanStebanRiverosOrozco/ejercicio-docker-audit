@@ -15,6 +15,29 @@ Evidencia del ejercicio, organizada por fases:
 
 ---
 
+## Resultado en vivo (desplegado)
+
+| Subdominio | Servicio | Estado |
+|------------|----------|--------|
+| `https://api.dockerapy.duckdns.org/health` | API Flask | ✅ `{"status":"ok"}` |
+| `https://api.dockerapy.duckdns.org/buscar?id=1` | Consulta a MySQL | ✅ datos del estudiante |
+| `https://dozzle.dockerapy.duckdns.org` | Dozzle (logs) | ✅ login: `admin` / `Dozzle2026Juan` |
+| `https://kuma.dockerapy.duckdns.org` | Uptime Kuma | ✅ setup inicial |
+
+- **Instancia EC2:** Ubuntu 26.04 · IP pública `18.222.171.81` · hostname `ec2-18-222-171-81.us-east-2.compute.amazonaws.com`
+- **Docker Hub:** `juanstebanriveros/ejercicio-docker-audit:latest`
+- **NPM:** 3 proxy hosts con Let's Encrypt (panel en `http://18.222.171.81:81`)
+
+```bash
+curl -sk https://api.dockerapy.duckdns.org/health
+# {"status":"ok"}
+
+curl -sk https://api.dockerapy.duckdns.org/buscar?id=1
+# {"resultados":[{"email":"juanstebanriveros@gmail.com","id":1,"nombre":"Juan Steban Riveros Orozco"}]}
+```
+
+---
+
 ## Fase 1 — Auditoría de seguridad
 
 El código original (`BlackT1221/ejercicio-docker-audit`) tenía estas vulnerabilidades:
@@ -73,11 +96,11 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 | Nombre | Tipo | Descripción |
 |--------|------|-------------|
-| `SERVER_HOST` | Secret | `ec2-18-222-171-81.us-east-2.compute.amazonaws.com` (la IP pública de la EC2) |
+| `SERVER_HOST` | Secret | `ec2-18-222-171-81.us-east-2.compute.amazonaws.com` (IP pública `18.222.171.81`) |
 | `SERVER_ADMIN` | Secret | Usuario SSH de la instancia (`ubuntu`) |
 | `SERVER_SSH_KEY` | Secret | Contenido completo de `Hoy.pem` |
 | `DOCKER_USERNAME` | Secret | Usuario de Docker Hub (`juanstebanriveros`) |
-| `DOCKER_PASSWORD` | Secret | Password o Access Token de Docker Hub |
+| `DOCKER_PASSWORD` | Secret | **Access Token** de Docker Hub (cuenta `juanstebanriveros`), generado en https://hub.docker.com → Account Settings → Security → New Access Token (permiso Read & Write). Empieza con `dckr_pat_...` |
 
 Con la CLI de GitHub:
 
@@ -116,6 +139,8 @@ gh secret set DOCKER_PASSWORD -b "tu_password_o_token"
 chmod 400 "Hoy.pem"
 ssh -i "Hoy.pem" ubuntu@ec2-18-222-171-81.us-east-2.compute.amazonaws.com
 ```
+
+> **Estado:** la instancia ya está creada, Docker instalado y el stack `docker compose` corriendo (verificado el 2026-09-04).
 
 ### 4.3 Instalar Docker en la instancia
 
@@ -175,12 +200,13 @@ curl -sk https://api-<tu-dominio>.duckdns.org/buscar?id=1 # datos desde MySQL
 
 ### 5.2 Agregar subdominios
 
-Crea los registros **A** apuntando a la IP pública de tu EC2 (Puede tomar unos minutos):
+Crea los registros **A** apuntando a la IP pública de tu EC2 (en este proyecto ya resuelven):
 
 ```
-api-juanstevan.duckdns.org     → <IP_PUBLICA_EC2>
-dozzle-juanstevan.duckdns.org  → <IP_PUBLICA_EC2>
-kuma-juanstevan.duckdns.org    → <IP_PUBLICA_EC2>
+api.dockerapy.duckdns.org     → 18.222.171.81   ✅ (verificado)
+dozzle.dockerapy.duckdns.org  → 18.222.171.81   ✅ (verificado)
+kuma.dockerapy.duckdns.org    → 18.222.171.81   ✅ (verificado)
+dockerapy.duckdns.org         → 18.222.171.81   ✅ (verificado)
 ```
 
 Para actualizarlos manualmente (o con tu navegador):
@@ -198,15 +224,14 @@ crontab -e
 
 ### 5.4 Nginx Proxy Manager
 
-1. Abre el panel: `http://<IP_EC2>:81` (o por túnel SSH si no abriste el 81).
-2. **Default admin:** `admin@example.com` / `changeme` (cámbialo al entrar).
-3. Crea **3 Proxy Hosts** (ADD PROXY HOST):
+1. Panel: `http://18.222.171.81:81` (admin: `juanstebanriveros@gmail.com` / tu contraseña).
+2. Los **3 Proxy Hosts ya están creados** con SSL Let's Encrypt vigente:
 
-   | Domain | Scheme | Forward Host / Port | SSL |
-   |--------|--------|---------------------|-----|
-   | `api-juanstevan.duckdns.org` | http | `api` / 5050 | Let's Encrypt ✅ |
-   | `dozzle-juanstevan.duckdns.org` | http | `dozzle` / 8080 | Let's Encrypt ✅ |
-   | `kuma-juanstevan.duckdns.org` | http | `kuma` / 3001 | Let's Encrypt ✅ |
+   | Domain | Forward Host / Port | SSL |
+   |--------|---------------------|-----|
+   | `api.dockerapy.duckdns.org` | `api` / 5050 | Let's Encrypt ✅ |
+   | `dozzle.dockerapy.duckdns.org` | `dozzle` / 8080 | Let's Encrypt ✅ |
+   | `kuma.dockerapy.duckdns.org` | `kuma` / 3001 | Let's Encrypt ✅ |
 
 > **Dozzle:** login con `admin` / `Dozzle2026Juan` (ver `users.yml`).
 > **Kuma:** al entrar por primera vez se crea el admin de Uptime Kuma.
