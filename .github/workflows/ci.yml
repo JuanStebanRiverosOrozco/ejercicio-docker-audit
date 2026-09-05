@@ -91,6 +91,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validar secrets requeridos
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_ADMIN: ${{ secrets.SERVER_ADMIN }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          echo "SERVER_HOST len=${#SERVER_HOST}"
+          echo "SERVER_ADMIN len=${#SERVER_ADMIN}"
+          echo "SERVER_SSH_KEY len=${#SERVER_SSH_KEY}"
+          echo "DOCKER_USERNAME len=${#DOCKER_USERNAME}"
+          [ -n "$SERVER_HOST" ] || echo "::error::El secret SERVER_HOST esta vacio"
+          [ -n "$SERVER_ADMIN" ] || echo "::error::El secret SERVER_ADMIN esta vacio"
+          [ -n "$SERVER_SSH_KEY" ] || echo "::error::El secret SERVER_SSH_KEY esta vacio"
+          [ -n "$DOCKER_USERNAME" ] || echo "::error::El secret DOCKER_USERNAME esta vacio"
+          [ -n "$SERVER_HOST" ] && [ -n "$SERVER_ADMIN" ] && [ -n "$SERVER_SSH_KEY" ] && [ -n "$DOCKER_USERNAME" ] || exit 1
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
