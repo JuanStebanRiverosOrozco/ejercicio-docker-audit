@@ -1,0 +1,7 @@
+users:
+    admin:
+        email: juanstebanriveros@gmail.com
+        name: Admin Juan
+        password: $2b$10$RMFAmFH0Paoy69dsGix94uDbJ1LwNT1.F8IwB0o.7uYt1CFsPo1um
+        filter: ""
+        roles: ""

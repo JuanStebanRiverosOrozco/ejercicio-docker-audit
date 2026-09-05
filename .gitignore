@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+Hoy.pem
+*.pem
+docs/bandit_auditoria.json
+bandit_report.json
+trivy-results.sarif

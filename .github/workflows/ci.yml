@@ -1,0 +1,113 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run pytest
+        run: pytest -v
+
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install bandit
+        run: pip install bandit==1.9.4
+      - name: Run bandit security scan
+        run: bandit -r . -x .venv,.git,docs -s B101 -f json -o bandit_report.json
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit_report.json
+
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t juanstebanriveros/ejercicio-docker-audit:ci .
+      - name: Trivy filesystem scan (0.74.0)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            aquasec/trivy:0.74.0 fs \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            .
+      - name: Trivy image scan (0.74.0)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.74.0 image \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            juanstebanriveros/ejercicio-docker-audit:ci
+
+  publish:
+    needs: [test, bandit, trivy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/ejercicio-docker-audit:latest
+
+  deploy:
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_ADMIN }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            sudo mkdir -p /opt/ejercicio-docker-audit
+            cd /opt/ejercicio-docker-audit
+            if [ ! -d .git ]; then
+              sudo git clone https://github.com/JuanStebanRiverosOrozco/ejercicio-docker-audit.git .
+            fi
+            sudo git fetch origin main
+            sudo git reset --hard origin/main
+            if [ ! -f .env ]; then sudo cp .env.example .env; fi
+            sudo docker compose pull api
+            sudo docker compose up -d --no-build
+            sudo docker image prune -f
